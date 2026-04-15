@@ -1,0 +1,14 @@
+# 大文件/模型权重
+*.zip
+*.pth
+*.ckpt
+*.pt
+*.npy
+*.npz
+# 训练输出文件夹
+checkpoints/
+data/
+# 缓存/临时文件
+__pycache__/
+*.pyc
+.vscode/
