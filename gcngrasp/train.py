@@ -1,10 +1,17 @@
 import argparse
 import os
+import sys
+# 强行将 Pointnet2_PyTorch 目录加入系统路径
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../Pointnet2_PyTorch'))
 import copy
 import pytorch_lightning as pl
 import torch
 from models.graspgpt_plain import GraspGPT_plain
 from config import get_cfg_defaults
+# 在 train.py 顶部添加：
+from ZYP_custom_loader import ZYPGraspGPTDatasetWrapper
+from gcngrasp.data_specification import TASKS
+from torch.utils.data import DataLoader, random_split
 
 def get_timestamp():
     import datetime
@@ -17,10 +24,11 @@ def get_timestamp():
     day_month_year = '{}-{}-{}-{}-{}'.format(year, month, day, hour, minute)
     return day_month_year
 
-
 def main(cfg):
     
     model = GraspGPT_plain(cfg)
+    
+    # ==== 删除了这里原本错误的 dataset 实例化 ====
 
     if cfg.pretraining_mode == 1:
         weight_file = os.path.join(cfg.log_dir, cfg.pretrained_weight_file)
@@ -49,7 +57,7 @@ def main(cfg):
 
     # 1. 配置早停回调
     early_stop_callback = pl.callbacks.EarlyStopping(
-        monitor="val_acc",  # 确保你的模型内部 log 了这个名称
+        monitor="val_acc",  
         patience=cfg.patience,
         mode="max"
     )
@@ -69,16 +77,45 @@ def main(cfg):
     if len(all_gpus) == 1:
         torch.cuda.set_device(all_gpus[0])
 
-    # 4. 初始化 Trainer (针对 PyTorch Lightning 2.0+ 进行了修正)
+# ---------------- 核心修复点 ---------------- 
+    # 手动触发数据准备，否则 train_dset 属性还没生成
+    print("正在初始化原始数据集...")
+    model.prepare_data()
+
+    # ---------------- 核心修改区开始 ---------------- 
+    # 1. 必须先获取原始数据加载器，把它作为“特征源”
+    orig_train_loader = model.train_dataloader()
+    orig_dataset = orig_train_loader.dataset
+
+    # 2. 导入官方任务列表
+    from gcngrasp.data_specification import TASKS
+    
+    # 3. 传入完整的 3 个参数！
+    index_path = "/home/zyp/Desktop/zyp_dataset7/graspgpt_format/dataset_index.json"
+    custom_dataset = ZYPGraspGPTDatasetWrapper(index_path, orig_dataset, TASKS)
+    
+    # 4. 将你的数据划分为训练集和验证集 (80% / 20%)
+    train_size = int(0.8 * len(custom_dataset))
+    val_size = len(custom_dataset) - train_size
+    train_dataset, val_dataset = random_split(custom_dataset, [train_size, val_size])
+
+    # 5. 生成你专属的 DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
+    # ---------------- 核心修改区结束 ----------------
+
+
+    # 初始化 Trainer
     trainer = pl.Trainer(
-        accelerator="gpu",                 # 指定使用 GPU
-        devices=all_gpus,                  # 指定具体的设备列表，例如 [0]
+        accelerator="gpu",                 
+        devices=all_gpus,                  
         max_epochs=cfg.epochs,
-        callbacks=[early_stop_callback, checkpoint_callback], # 所有回调放入列表
-        default_root_dir=log_dir           # 替代原来的 default_save_path
+        callbacks=[early_stop_callback, checkpoint_callback], 
+        default_root_dir=log_dir           
     )
     
-    trainer.fit(model)
+    # 传入你自己的 Dataloader！
+    trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GCN training")

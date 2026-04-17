@@ -116,6 +116,7 @@ TASKSING = ['brushing',
 # 原来的：openai.api_key = "sk-xxxx"
 # 改成：
 import os
+import openai  # <--- 必须添加这一行！
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
