@@ -3,9 +3,9 @@ from yacs.config import CfgNode as CN
 # Miscellaneous configs
 _C = CN()
 _C.weight_file = ''
-_C.batch_size = 32
+_C.batch_size = 16 #32
 _C.num_points = 4096
-_C.epochs = 50
+_C.epochs = 1000 #10 #50
 _C.gpus = [0, ]
 _C.distrib_backend = 'dp'
 _C.name = 'gcngrasp'

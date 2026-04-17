@@ -139,7 +139,6 @@ class GraspGPT_plain(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         pc, _, task_id, class_id, _, _, label, obj_desc, obj_desc_mask, task_desc, task_desc_mask, task_ins, task_ins_mask = batch
 
-        # logits = self.forward(pc, node_x_idx, latent, edge_index, tasks, tasks_no, classes, classes_no)
         logits = self.forward(pc, obj_desc, obj_desc_mask, task_desc, task_desc_mask, task_ins, task_ins_mask)
         logits = logits.squeeze()
 
@@ -150,9 +149,12 @@ class GraspGPT_plain(pl.LightningModule):
             pred = torch.round(torch.sigmoid(logits))
             acc = (pred == label).float().mean()
 
-        log = dict(train_loss=loss, train_acc=acc)
+        # [修改点 1] 使用 self.log 替代 return dict()
+        # on_epoch=True 会自动计算 epoch 平均值并记录
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True, batch_size=pc.shape[0])
+        self.log('train_acc', acc, on_step=True, on_epoch=True, prog_bar=True, logger=True, batch_size=pc.shape[0])
 
-        return dict(loss=loss, log=log, progress_bar=dict(train_acc=acc))
+        return loss
 
     def validation_step(self, batch, batch_idx):
 
@@ -171,25 +173,15 @@ class GraspGPT_plain(pl.LightningModule):
         pred = torch.round(torch.sigmoid(logits))
         acc = (pred == label).float().mean()
 
-        return dict(val_loss=loss, val_acc=acc)
+        # [修改点 2] 使用 self.log 替代 return dict()
+        # on_epoch=True 完美替代了原来的 validation_end 函数！
+        self.log('val_loss', loss, on_epoch=True, prog_bar=True, logger=True, batch_size=pc.shape[0])
+        self.log('val_acc', acc, on_epoch=True, prog_bar=True, logger=True, batch_size=pc.shape[0])
 
-    def validation_end(self, outputs):
-        reduced_outputs = {}
-        # process val_loss and val_acc
-        for k in outputs[0]:
-            for o in outputs:
-                reduced_outputs[k] = reduced_outputs.get(k, []) + [o[k]]
+        return loss
 
-        # average over all outputs
-        for k in reduced_outputs:
-            reduced_outputs[k] = torch.stack(reduced_outputs[k]).mean()
-
-        reduced_outputs.update(
-            dict(log=reduced_outputs.copy(), progress_bar=reduced_outputs.copy())
-        )
-
-        return reduced_outputs
-    
+    # [修改点 3] 彻底删除整个 validation_end(self, outputs) 函数！
+    # 因为 self.log('val_acc', ..., on_epoch=True) 已经全自动处理了。
     def configure_optimizers(self):
         lr_lbmd = lambda _: max(
             self.cfg.optimizer.lr_decay
