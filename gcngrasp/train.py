@@ -6,12 +6,6 @@ import torch
 from models.graspgpt_plain import GraspGPT_plain
 from config import get_cfg_defaults
 
-# ==== 新增 1：导入 DataLoader 和你写的 Adapter ====
-from torch.utils.data import DataLoader
-# 假设你的 Adapter 存放在 gcngrasp 目录下名为 adapter_dataset.py 的文件中
-from ZYP_MyDatasetAdapter import GraspGPTAdapterDataset 
-# ==================================================
-
 def get_timestamp():
     import datetime
     now = datetime.datetime.now()
@@ -53,12 +47,14 @@ def main(cfg):
     exp_name = "{}_{}".format(cfg.name, get_timestamp())
     log_dir = os.path.join(cfg.log_dir, exp_name)
 
+    # 1. 配置早停回调
     early_stop_callback = pl.callbacks.EarlyStopping(
-        monitor="val_acc",  
+        monitor="val_acc",  # 确保你的模型内部 log 了这个名称
         patience=cfg.patience,
         mode="max"
     )
 
+    # 2. 配置模型检查点回调
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         monitor="val_acc",
         mode="max",
@@ -68,57 +64,31 @@ def main(cfg):
         verbose=True,
     )
 
+    # 3. GPU 设备设置
     all_gpus = list(cfg.gpus)
     if len(all_gpus) == 1:
         torch.cuda.set_device(all_gpus[0])
 
+    # 4. 初始化 Trainer (针对 PyTorch Lightning 2.0+ 进行了修正)
     trainer = pl.Trainer(
-        accelerator="gpu",                 
-        devices=all_gpus,                  
+        accelerator="gpu",                 # 指定使用 GPU
+        devices=all_gpus,                  # 指定具体的设备列表，例如 [0]
         max_epochs=cfg.epochs,
-        callbacks=[early_stop_callback, checkpoint_callback], 
-        default_root_dir=log_dir           
+        callbacks=[early_stop_callback, checkpoint_callback], # 所有回调放入列表
+        default_root_dir=log_dir           # 替代原来的 default_save_path
     )
     
-    # ==== 新增 2：在这里实例化你的 Adapter 数据集 ====
-    # 注意：这里的 cfg 需要包含你原本数据集的配置信息。
-    # 比如你可以在跑脚本时把你的 config 作为参数传进来，或者硬编码在这里
-    train_dataset = GraspGPTAdapterDataset(cfg, split='train')
-    val_dataset = GraspGPTAdapterDataset(cfg, split='val')
-
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=cfg.batch_size,
-        shuffle=True,
-        #num_workers=cfg.num_workers,
-        num_workers=4,  # <==== 把 cfg.num_workers 改成 4
-        pin_memory=True,
-        drop_last=True
-    )
-
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=cfg.batch_size,
-        shuffle=False,
-        #num_workers=cfg.num_workers,
-        num_workers=4,  # <==== 把 cfg.num_workers 改成 4
-        pin_memory=True,
-        drop_last=False
-    )
-    # ==================================================
-
-    # ==== 修改：将你的 DataLoader 直接注入给 trainer ====
-    # 这样可以强行覆盖掉模型内部原本自带的 DataLoader，无需去模型里删代码
-    trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=val_loader)
-    # ==================================================
+    trainer.fit(model)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GCN training")
-    parser.add_argument('--cfg_file', help='yaml file in YACS config format to override default configs', default='', type=str)
+    parser.add_argument(
+        '--cfg_file',
+        help='yaml file in YACS config format to override default configs',
+        default='',
+        type=str)
     parser.add_argument('--gpus', nargs='+', default=-1, type=int)
     parser.add_argument('--batch_size', default=-1, type=int)
-    # 你可以在这里加一个参数，用来传入你原本数据集的配置文件
-    parser.add_argument('--my_dataset_cfg', default='', type=str, help='Your original dataset config')
 
     args = parser.parse_args()
 
@@ -132,7 +102,9 @@ if __name__ == "__main__":
 
     if cfg.base_dir != '':
         if not os.path.exists(cfg.base_dir):
-            raise FileNotFoundError(f'Provided base dir {cfg.base_dir} not found')
+            raise FileNotFoundError(
+                'Provided base dir {} not found'.format(
+                    cfg.base_dir))
     else:
         assert cfg.base_dir == ''
         cfg.base_dir = os.path.join(os.path.dirname(__file__), '../data')
