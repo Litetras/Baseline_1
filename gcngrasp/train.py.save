@@ -1,24 +1,15 @@
-import argparse
-import os
-import sys
-# 强行将 Pointnet2_PyTorch 目录加入系统路径
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../Pointnet2_PyTorch'))
-import copy
-import pytorch_lightning as pl
-import torch
-import numpy as np
-from models.graspgpt_plain import GraspGPT_plain
-from config import get_cfg_defaults
-from ZYP_custom_loader import ZYPGraspGPTDatasetWrapper
-from gcngrasp.data_specification import TASKS
-from torch.utils.data import DataLoader
-
-def get_timestamp():
-    import datetime
-    now = datetime.datetime.now()
-    year = '{:02d}'.format(now.year)
-    month = '{:02d}'.format(now.month)
-    day = '{:02d}'.format(now.day)
+cd gcngraspimport argparse import os import sys cd gcngrasp# 强行将 
+Pointnet2_PyTorch 目录加入系统路径 
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+'../Pointnet2_PyTorch')) import copy import pytorch_lightning as pl 
+import torch import numpy as np from models.graspgpt_plain import 
+GraspGPT_plain from config import get_cfg_defaults from 
+ZYP_custom_loader import ZYPGraspGPTDatasetWrapper from 
+gcngrasp.data_specification import TASKS from torch.utils.data import 
+DataLoader cd gcngrasp def get_timestamp(): cd gcngrasp import datetime 
+cd gcngrasp now = datetime.datetime.now() cd gcngrasp year = 
+'{:02d}'.format(now.year) nano train.py month = 
+'{:02d}'.format(now.month) exit day = '{:02d}'.format(now.day)
     hour = '{:02d}'.format(now.hour)
     minute = '{:02d}'.format(now.minute)
     day_month_year = '{}-{}-{}-{}-{}'.format(year, month, day, hour, minute)
