@@ -41,9 +41,7 @@ def build_graspgpt_dataset(src_grasp_dir, src_obj_dir, out_dir):
         label = 0
         task = ""
         obj_class = ""
-##################################################    
-#标签对应核心
-########################################################################################
+
         if 'knife' in id_name.lower():
             obj_class = 'kitchen_knife'
             task = 'cut'
@@ -56,7 +54,7 @@ def build_graspgpt_dataset(src_grasp_dir, src_obj_dir, out_dir):
                 label = 1
         else:
             continue
-#############################################################################################
+
         # 4. 加载抓取数据
         try:
             with open(json_path, 'r') as f:
